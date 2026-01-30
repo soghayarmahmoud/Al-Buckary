@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:buck/components/usage_service.dart';
+import 'package:buck/database_helper.dart';
 
 class StatisticsPage extends StatefulWidget {
   const StatisticsPage({super.key});
@@ -16,6 +17,8 @@ class _StatisticsPageState extends State<StatisticsPage>
   int streak = 0;
   int totalSeconds = 0;
   Map<DateTime, int> last7Days = {};
+  int notesCount = 0;
+  int collectionsCount = 0;
 
   @override
   void initState() {
@@ -38,11 +41,17 @@ class _StatisticsPageState extends State<StatisticsPage>
     final total = await UsageService.getTotalSeconds();
     final last7 = await UsageService.getLastNDays(7);
 
+    // Fetch DB stats
+    final notes = await DatabaseHelper.instance.getAllNotes();
+    final collections = await DatabaseHelper.instance.getCollections();
+
     setState(() {
       openedDays = days;
       streak = s;
       totalSeconds = total;
       last7Days = last7;
+      notesCount = notes.length;
+      collectionsCount = collections.length;
     });
   }
 
@@ -138,6 +147,66 @@ class _StatisticsPageState extends State<StatisticsPage>
                             const SizedBox(height: 8),
                             Text(
                               '${(totalSeconds / 60).round()}',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            // New Stats Row
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16.0),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              'الملاحظات',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$notesCount',
+                              style: const TextStyle(
+                                fontSize: 28,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(12.0),
+                        child: Column(
+                          children: [
+                            Text(
+                              'المجموعات',
+                              style: TextStyle(
+                                color: Theme.of(context).colorScheme.primary,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Text(
+                              '$collectionsCount',
                               style: const TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,

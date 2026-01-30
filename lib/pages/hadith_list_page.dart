@@ -4,6 +4,7 @@ import 'package:buck/database_helper.dart';
 import 'package:buck/models/hadith.dart';
 import 'package:buck/models/chaper.dart';
 import 'package:buck/components/hadith_card.dart';
+import 'package:buck/components/banner_ad_widget.dart';
 
 class HadithListPage extends StatefulWidget {
   final Chapter chapter;
@@ -111,6 +112,8 @@ class _HadithListPageState extends State<HadithListPage> {
                             },
                           ),
           ),
+          // Banner Ad at the bottom
+          const BannerAdWidget(),
         ],
       ),
     );

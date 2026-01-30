@@ -190,6 +190,10 @@ import 'package:buck/database_helper.dart';
 import 'package:buck/models/hadith.dart';
 import 'package:buck/models/chaper.dart';
 import 'package:buck/providers/favorit_provider.dart';
+import 'package:buck/components/notes_sheet.dart';
+import 'package:buck/components/add_to_collection_sheet.dart';
+import 'package:buck/components/smart_share_dialog.dart';
+import 'package:buck/services/notification_service.dart';
 
 class HadithPage extends StatefulWidget {
   final Chapter chapter;
@@ -257,7 +261,7 @@ class _HadithPageState extends State<HadithPage> {
       spans.add(TextSpan(
         text: text.substring(indexOfMatch, indexOfMatch + normalizedQuery.length),
         style: TextStyle(
-          backgroundColor: Theme.of(context).colorScheme.tertiary.withOpacity(0.5),
+          backgroundColor: Theme.of(context).colorScheme.tertiary.withValues(alpha: 0.5),
           fontWeight: FontWeight.bold,
         ),
       ));
@@ -369,15 +373,75 @@ class HadithCard extends StatelessWidget {
                   icon: const Icon(Icons.copy),
                   onPressed: () {
                     Clipboard.setData(ClipboardData(text: hadith.text));
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('تم النسخ')),
-                    );
+                    NotificationService.showInfo(context, 'تم نسخ الحديث 📋');
                   },
                 ),
                 IconButton(
                   icon: const Icon(Icons.share),
                   onPressed: () {
-                    Share.share(hadith.text);
+                    showModalBottomSheet(
+                      context: context,
+                      builder: (context) => Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          ListTile(
+                            leading: const Icon(Icons.copy_all),
+                            title: const Text('نسخ النص'),
+                            onTap: () {
+                              Clipboard.setData(ClipboardData(text: hadith.text));
+                              Navigator.pop(context);
+                              NotificationService.showInfo(context, 'تم نسخ الحديث 📋');
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.text_fields),
+                            title: const Text('مشاركة كنص'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              Share.share(hadith.text);
+                              NotificationService.showInfo(context, 'جاري مشاركة الحديث 📤');
+                            },
+                          ),
+                          ListTile(
+                            leading: const Icon(Icons.image),
+                            title: const Text('مشاركة كصورة (Smart Share)'),
+                            onTap: () {
+                              Navigator.pop(context);
+                              showDialog(
+                                context: context,
+                                builder: (context) => SmartShareDialog(hadith: hadith),
+                              );
+                            },
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.note_add_outlined),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (context) => NotesSheet(hadith: hadith),
+                    );
+                  },
+                ),
+                IconButton(
+                  icon: const Icon(Icons.bookmark_add_outlined),
+                  onPressed: () {
+                     showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                      ),
+                      builder: (context) => AddToCollectionSheet(hadith: hadith),
+                    );
                   },
                 ),
                 IconButton(
@@ -386,7 +450,7 @@ class HadithCard extends StatelessWidget {
                     color: isFavorite ? Colors.red : Theme.of(context).iconTheme.color,
                   ),
                   onPressed: () {
-                    favoritesProvider.toggleFavorite(hadith);
+                    favoritesProvider.toggleFavorite(hadith, context);
                   },
                 ),
               ],

@@ -221,7 +221,7 @@ class _CustomAppBarState extends State<CustomAppBar>
               ),
               textDirection: TextDirection.rtl,
             ),
-      backgroundColor: isDark ? const Color(0xFF1A2139) : primaryColor,
+      backgroundColor: isDark ? const Color(0xFF1E1E1E) : primaryColor,
       centerTitle: !_isSearching,
       elevation: 8,
       shadowColor: primaryColor.withOpacity(0.3),
@@ -248,94 +248,12 @@ class _CustomAppBarState extends State<CustomAppBar>
               ),
             ),
           ),
-        PopupMenuButton<String>(
-          icon: Icon(Icons.menu, color: isDark ? primaryColor : Colors.black),
-          onSelected: (String result) {
-            if (result == 'settings') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const SettingsPage()),
-              );
-            } else if (result == 'statistics') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const StatisticsPage()),
-              );
-            } else if (result == 'about') {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (context) => const AboutPage()),
-              );
-            }
-          },
-          itemBuilder: (BuildContext context) => <PopupMenuEntry<String>>[
-            PopupMenuItem<String>(
-              value: 'settings',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.settings,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'الإعدادات',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 16,
-                    ),
-                    textDirection: TextDirection.rtl,
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuItem<String>(
-              value: 'statistics',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.bar_chart,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'الإحصائيات',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 16,
-                    ),
-                    textDirection: TextDirection.rtl,
-                  ),
-                ],
-              ),
-            ),
-            PopupMenuItem<String>(
-              value: 'about',
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.info,
-                    color: Theme.of(context).colorScheme.primary,
-                  ),
-                  const SizedBox(width: 12),
-                  Text(
-                    'عن التطبيق',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontSize: 16,
-                    ),
-                    textDirection: TextDirection.rtl,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
       ],
     );
   }
 
   Widget _buildSearchField(ThemeProvider themeProvider, Color primaryColor) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return ScaleTransition(
       scale: _widthAnimation,
       child: FadeTransition(
@@ -347,10 +265,11 @@ class _CustomAppBarState extends State<CustomAppBar>
             textDirection: TextDirection.rtl,
             textAlignVertical: TextAlignVertical.center,
             onChanged: _onSearchChanged,
+            inputFormatters: const [],
             decoration: InputDecoration(
               hintText: 'ابحث عن حديث...',
               hintStyle: TextStyle(
-                color: Colors.white.withOpacity(0.6),
+                color: Colors.white.withValues(alpha: 0.6),
                 fontSize: 16,
               ),
               border: InputBorder.none,
@@ -358,15 +277,21 @@ class _CustomAppBarState extends State<CustomAppBar>
               focusedBorder: InputBorder.none,
               prefixIcon: Icon(
                 Icons.search,
-                color: Colors.white.withOpacity(0.7),
+                color: Colors.white.withValues(alpha: 0.7),
+                size: 22,
               ),
               contentPadding: const EdgeInsets.symmetric(
                 horizontal: 12,
                 vertical: 8,
               ),
             ),
-            style: const TextStyle(color: Colors.white, fontSize: 16),
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 16,
+              height: 1.5,
+            ),
             cursorColor: Colors.white,
+            maxLines: 1,
           ),
         ),
       ),

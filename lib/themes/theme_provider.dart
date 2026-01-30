@@ -7,6 +7,9 @@ class ThemeProvider extends ChangeNotifier {
   late ThemeData _themeData;
   double _fontSize = 18.0;
 
+  // Theme Modes: light, dark, amoled, sepia
+  String _themeMode = 'light';
+
   // Color customization
   late Color _primaryColor;
   String _selectedColorScheme =
@@ -23,14 +26,15 @@ class ThemeProvider extends ChangeNotifier {
   ThemeProvider() {
     // Initializing with a default value to prevent the LateInitializationError
     _primaryColor = const Color(0xFF00695C);
-    _themeData = _buildLightMode(_primaryColor, _selectedFontFamily);
+    _themeData = _buildTheme(_themeMode, _primaryColor, _selectedFontFamily);
     _loadSettings();
   }
 
   // Getters للوصول إلى البيانات
   ThemeData get themeData => _themeData;
   double get fontSize => _fontSize;
-  bool get isDarkMode => _themeData.brightness == Brightness.dark;
+  bool get isDarkMode => _themeMode == 'dark' || _themeMode == 'amoled';
+  String get themeMode => _themeMode;
   bool get isBold => _isBold;
   bool get isItalic => _isItalic;
   bool get isUnderline => _isUnderline;
@@ -41,39 +45,63 @@ class ThemeProvider extends ChangeNotifier {
   // تحميل الإعدادات من الذاكرة
   Future<void> _loadSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    final isDarkMode = prefs.getBool('isDarkMode') ?? false;
+    // Migration: If old boolean exists, convert to string
+    if (prefs.containsKey('isDarkMode')) {
+      final bool isDark = prefs.getBool('isDarkMode') ?? false;
+      _themeMode = isDark ? 'dark' : 'light';
+      await prefs.remove('isDarkMode'); // Clean up old key
+    } else {
+      _themeMode = prefs.getString('themeMode') ?? 'light';
+    }
+
     _fontSize = prefs.getDouble('fontSize') ?? 22.0;
     _isBold = prefs.getBool('isBold') ?? false;
     _isItalic = prefs.getBool('isItalic') ?? false;
     _isUnderline = prefs.getBool('isUnderline') ?? false;
     _selectedColorScheme = prefs.getString('colorScheme') ?? 'teal';
     _selectedFontFamily = prefs.getString('fontFamily') ?? 'cairo';
-    _primaryColor = _getColorForScheme(_selectedColorScheme);
-    _themeData = isDarkMode
-        ? _buildDarkMode(_primaryColor, _selectedFontFamily)
-        : _buildLightMode(_primaryColor, _selectedFontFamily);
+    
+    // Load custom color if set
+    final customColorValue = prefs.getInt('customPrimaryColor');
+    if (customColorValue != null && _selectedColorScheme == 'custom') {
+      _primaryColor = Color(customColorValue);
+    } else {
+      _primaryColor = _getColorForScheme(_selectedColorScheme);
+    }
+    
+    _themeData = _buildTheme(_themeMode, _primaryColor, _selectedFontFamily);
     notifyListeners();
   }
 
   // حفظ جميع الإعدادات في الذاكرة
   Future<void> _saveSettings() async {
     final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('isDarkMode', isDarkMode);
+    await prefs.setString('themeMode', _themeMode);
     await prefs.setDouble('fontSize', _fontSize);
     await prefs.setBool('isBold', _isBold);
     await prefs.setBool('isItalic', _isItalic);
     await prefs.setBool('isUnderline', _isUnderline);
     await prefs.setString('colorScheme', _selectedColorScheme);
     await prefs.setString('fontFamily', _selectedFontFamily);
+    // Save custom color value if custom scheme is selected
+    if (_selectedColorScheme == 'custom') {
+      await prefs.setInt('customPrimaryColor', _primaryColor.toARGB32());
+    }
   }
 
-  // تغيير المظهر
+  // تغيير وضع المظهر
+  void setThemeMode(String mode) {
+    if (['light', 'dark', 'amoled', 'sepia'].contains(mode)) {
+      _themeMode = mode;
+      _themeData = _buildTheme(_themeMode, _primaryColor, _selectedFontFamily);
+      _saveSettings();
+      notifyListeners();
+    }
+  }
+
+  // Toggle for backward compatibility (Light <-> Dark)
   void toggleTheme() {
-    _themeData = isDarkMode
-        ? _buildLightMode(_primaryColor, _selectedFontFamily)
-        : _buildDarkMode(_primaryColor, _selectedFontFamily);
-    _saveSettings();
-    notifyListeners();
+    setThemeMode(isDarkMode ? 'light' : 'dark');
   }
 
   // تعيين حجم الخط
@@ -96,9 +124,16 @@ class ThemeProvider extends ChangeNotifier {
   void setColorScheme(String scheme) {
     _selectedColorScheme = scheme;
     _primaryColor = _getColorForScheme(scheme);
-    _themeData = isDarkMode
-        ? _buildDarkMode(_primaryColor, _selectedFontFamily)
-        : _buildLightMode(_primaryColor, _selectedFontFamily);
+    _themeData = _buildTheme(_themeMode, _primaryColor, _selectedFontFamily);
+    _saveSettings();
+    notifyListeners();
+  }
+
+  // Set custom primary color
+  void setCustomPrimaryColor(Color color) {
+    _primaryColor = color;
+    _selectedColorScheme = 'custom';
+    _themeData = _buildTheme(_themeMode, _primaryColor, _selectedFontFamily);
     _saveSettings();
     notifyListeners();
   }
@@ -106,9 +141,7 @@ class ThemeProvider extends ChangeNotifier {
   // تعيين عائلة الخط
   void setFontFamily(String fontFamily) {
     _selectedFontFamily = fontFamily;
-    _themeData = isDarkMode
-        ? _buildDarkMode(_primaryColor, fontFamily)
-        : _buildLightMode(_primaryColor, fontFamily);
+    _themeData = _buildTheme(_themeMode, _primaryColor, fontFamily);
     _saveSettings();
     notifyListeners();
   }
@@ -151,77 +184,64 @@ class ThemeProvider extends ChangeNotifier {
     }
   }
 
-  // Build light theme with dynamic color and font
-  ThemeData _buildLightMode(Color primaryColor, String fontFamily) {
+  // Unified Theme Builder
+  ThemeData _buildTheme(String mode, Color primaryColor, String fontFamily) {
     final baseTextStyle = _getFontStyle(fontFamily);
+    
+    // Define base colors based on mode
+    Color scaffoldBg;
+    Color cardBg;
+    Color textColor;
+    Brightness brightness;
+    
+    switch (mode) {
+      case 'amoled':
+        scaffoldBg = Colors.black;
+        cardBg = const Color(0xFF121212);
+        textColor = Colors.white;
+        brightness = Brightness.dark;
+        break;
+      case 'sepia':
+        scaffoldBg = const Color(0xFFF4ECD8); // Warm paper-like color
+        cardBg = const Color(0xFFE8DECA); // Slightly darker for cards
+        textColor = const Color(0xFF5D4037); // Brownish text
+        brightness = Brightness.light;
+        break;
+      case 'dark':
+        scaffoldBg = const Color(0xFF121212);
+        cardBg = const Color(0xFF1E1E1E);
+        textColor = Colors.white;
+        brightness = Brightness.dark;
+        break;
+      case 'light':
+      default:
+        scaffoldBg = Colors.white;
+        cardBg = Colors.white;
+        textColor = Colors.black87;
+        brightness = Brightness.light;
+        break;
+    }
 
     return ThemeData(
       useMaterial3: true,
       colorScheme: ColorScheme.fromSeed(
         seedColor: primaryColor,
-        brightness: Brightness.light,
+        brightness: brightness,
+        surface: scaffoldBg,
       ),
-      scaffoldBackgroundColor: Colors.white,
-      cardTheme: CardThemeData(
-        elevation: 4,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: Colors.white,
-      ),
-      appBarTheme: AppBarTheme(
-        centerTitle: true,
-        elevation: 0,
-        backgroundColor: primaryColor,
-        foregroundColor: Colors.white,
-        titleTextStyle: baseTextStyle.copyWith(
-          color: Colors.white,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-      elevatedButtonTheme: ElevatedButtonThemeData(
-        style: ElevatedButton.styleFrom(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(12),
-          ),
-          elevation: 2,
-          backgroundColor: primaryColor,
-          foregroundColor: Colors.white,
-        ),
-      ),
-      textTheme: TextTheme(
-        bodyLarge: baseTextStyle.copyWith(fontSize: 16),
-        bodyMedium: baseTextStyle.copyWith(fontSize: 14),
-        titleLarge: baseTextStyle.copyWith(
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
-        ),
-      ),
-    );
-  }
-
-  // Build dark theme with dynamic color and font
-  ThemeData _buildDarkMode(Color primaryColor, String fontFamily) {
-    final baseTextStyle = _getFontStyle(fontFamily);
-
-    return ThemeData(
-      useMaterial3: true,
-      colorScheme: ColorScheme.fromSeed(
-        seedColor: primaryColor,
-        brightness: Brightness.dark,
-      ),
-      scaffoldBackgroundColor: const Color(0xFF0F1729),
+      scaffoldBackgroundColor: scaffoldBg,
       primaryColor: primaryColor,
       cardTheme: CardThemeData(
-        elevation: 2,
+        elevation: mode == 'sepia' ? 1 : 4,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-        color: const Color(0xFF1A2139),
-        surfaceTintColor: primaryColor.withOpacity(0.05),
+        color: cardBg,
+        surfaceTintColor: primaryColor.withValues(alpha: 0.05),
       ),
       appBarTheme: AppBarTheme(
         centerTitle: true,
         elevation: 0,
-        backgroundColor: const Color(0xFF1A2139),
-        foregroundColor: Colors.white,
+        backgroundColor: mode == 'sepia' ? primaryColor : (brightness == Brightness.dark ? cardBg : primaryColor),
+        foregroundColor: mode == 'sepia' ? Colors.white : (brightness == Brightness.dark ? Colors.white : Colors.white),
         titleTextStyle: baseTextStyle.copyWith(
           color: Colors.white,
           fontSize: 20,
@@ -239,31 +259,35 @@ class ThemeProvider extends ChangeNotifier {
         ),
       ),
       textTheme: TextTheme(
-        bodyLarge: baseTextStyle.copyWith(fontSize: 16, color: Colors.white),
-        bodyMedium: baseTextStyle.copyWith(fontSize: 14, color: Colors.white70),
+        bodyLarge: baseTextStyle.copyWith(
+          fontSize: 16,
+          color: textColor,
+          height: 1.5,
+        ),
+        bodyMedium: baseTextStyle.copyWith(fontSize: 14, color: textColor.withValues(alpha: 0.8)),
         titleLarge: baseTextStyle.copyWith(
           fontSize: 20,
           fontWeight: FontWeight.bold,
-          color: Colors.white,
+          color: textColor,
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: const Color(0xFF1A2139),
+        fillColor: brightness == Brightness.dark ? const Color(0xFF2A2A2A) : Colors.grey.withValues(alpha: 0.1),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor.withOpacity(0.3)),
+          borderSide: BorderSide(color: primaryColor.withValues(alpha: 0.3)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
-          borderSide: BorderSide(color: primaryColor.withOpacity(0.2)),
+          borderSide: BorderSide(color: primaryColor.withValues(alpha: 0.2)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: BorderSide(color: primaryColor, width: 2),
         ),
-        labelStyle: const TextStyle(color: Colors.white70),
-        hintStyle: TextStyle(color: Colors.white.withOpacity(0.5)),
+        labelStyle: TextStyle(color: textColor.withValues(alpha: 0.7)),
+        hintStyle: TextStyle(color: textColor.withValues(alpha: 0.5)),
       ),
     );
   }

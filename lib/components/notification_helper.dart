@@ -2,6 +2,8 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:io';
+import 'package:flutter/foundation.dart'; // For debugPrint
 
 class NotificationHelper {
   static final FlutterLocalNotificationsPlugin _notificationsPlugin =
@@ -41,53 +43,60 @@ class NotificationHelper {
       // Cancel existing notification if any
       await _notificationsPlugin.cancelAll();
 
-      // Get local timezone
-      tz.initializeTimeZones();
-      final location = tz.getLocation(tz.local.name);
+      if (Platform.isWindows || Platform.isLinux) {
+         debugPrint("⚠️ Scheduled notifications (zonedSchedule) are not full supported on Desktop in this version yet. Skipping schedule to avoid crash.");
+         // Note: Windows support for scheduling is limited in standard plugin without custom background service.
+         // We will save prefs so it works if they sync to mobile, but skip actual schedule call.
+      } else {
+        // Get local timezone
+        tz.initializeTimeZones();
+        final location = tz.getLocation(tz.local.name);
 
-      // Calculate next occurrence
-      final now = tz.TZDateTime.now(location);
-      var scheduledDate = tz.TZDateTime(
-        location,
-        now.year,
-        now.month,
-        now.day,
-        hour,
-        minute,
-      );
+        // Calculate next occurrence
+        final now = tz.TZDateTime.now(location);
+        var scheduledDate = tz.TZDateTime(
+          location,
+          now.year,
+          now.month,
+          now.day,
+          hour,
+          minute,
+        );
 
-      // If time has passed today, schedule for tomorrow
-      if (scheduledDate.isBefore(now)) {
-        scheduledDate = scheduledDate.add(const Duration(days: 1));
-      }
+        // If time has passed today, schedule for tomorrow
+        if (scheduledDate.isBefore(now)) {
+          scheduledDate = scheduledDate.add(const Duration(days: 1));
+        }
 
-      // Schedule the notification
-      await _notificationsPlugin.zonedSchedule(
-        999, // Notification ID for daily reminder
-        'تذكير يومي 📖',
-        'حان وقت قراءة الحديث الشريف من صحيح البخاري',
-        scheduledDate,
-        const NotificationDetails(
-          android: AndroidNotificationDetails(
-            'daily_reminder_channel_id',
-            'تذكير يومي',
-            channelDescription: 'تذكير يومي لقراءة الأحاديث',
-            importance: Importance.high,
-            priority: Priority.high,
-            playSound: true,
+        // Schedule the notification
+        await _notificationsPlugin.zonedSchedule(
+          999, // Notification ID for daily reminder
+          'تذكير يومي 📖',
+          'حان وقت قراءة الحديث الشريف من صحيح البخاري',
+          scheduledDate,
+          const NotificationDetails(
+            android: AndroidNotificationDetails(
+              'daily_reminder_channel_id',
+              'تذكير يومي',
+              channelDescription: 'تذكير يومي لقراءة الأحاديث',
+              importance: Importance.max,
+              priority: Priority.high,
+              playSound: true,
+              category: AndroidNotificationCategory.alarm,
+              audioAttributesUsage: AudioAttributesUsage.alarm,
+            ),
           ),
-        ),
-        androidScheduleMode: AndroidScheduleMode.inexactAllowWhileIdle,
-        matchDateTimeComponents:
-            DateTimeComponents.time, // Repeat daily at same time
-      );
+          androidScheduleMode: AndroidScheduleMode.alarmClock,
+          matchDateTimeComponents: DateTimeComponents.time,
+        );
+      }
 
       // Save preference
       await prefs.setBool('dailyReminderEnabled', true);
       await prefs.setInt('reminderHour', hour);
       await prefs.setInt('reminderMinute', minute);
     } catch (e) {
-      print('Error scheduling daily reminder: $e');
+      debugPrint('Error scheduling daily reminder: $e');
     }
   }
 
@@ -98,7 +107,7 @@ class NotificationHelper {
       final prefs = await SharedPreferences.getInstance();
       await prefs.setBool('dailyReminderEnabled', false);
     } catch (e) {
-      print('Error disabling daily reminder: $e');
+      debugPrint('Error disabling daily reminder: $e');
     }
   }
 
@@ -134,7 +143,29 @@ class NotificationHelper {
         ),
       );
     } catch (e) {
-      print('Error showing test notification: $e');
+      debugPrint('Error showing test notification: $e');
     }
+  }
+  /// Show notification from background task
+  static Future<void> showDailyNotification(dynamic hadith) async {
+    const AndroidNotificationDetails androidDetails =
+        AndroidNotificationDetails(
+      'daily_hadith_channel_id',
+      'Daily Hadith',
+      channelDescription: 'إشعارات الحديث اليومي',
+      importance: Importance.max,
+      priority: Priority.high,
+      playSound: true,
+    );
+    const NotificationDetails platformDetails =
+        NotificationDetails(android: androidDetails);
+        
+    await _notificationsPlugin.show(
+      hadith.id,
+      '📖 حديث اليوم من البخاري',
+      hadith.text,
+      platformDetails,
+      payload: '{"hadithId": ${hadith.id}, "chapterId": ${hadith.chapterId}}',
+    );
   }
 }

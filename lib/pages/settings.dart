@@ -10,6 +10,8 @@ import 'package:url_launcher/url_launcher.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:buck/pages/about_page.dart';
+import 'package:buck/database_helper.dart';
+import 'package:flex_color_picker/flex_color_picker.dart';
 
 // Alias for AboutPage to distinguish it from usage in settings
 typedef AboutPageWidget = AboutPage;
@@ -90,8 +92,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   Future<void> _shareApp() async {
     try {
-      const url =
-          'https://drive.google.com/uc?export=download&id=1i_inm8g9IyRvfJ-0DjslSmwGvs0N_mvn';
+      const url = 'https://elsoghayar.vercel.app/projects/6';
 
       await Share.share(
         '📲 جرّب تطبيق البخاري!\n\nحمّل التطبيق من هنا: $url',
@@ -102,6 +103,77 @@ class _SettingsPageState extends State<SettingsPage> {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('تعذر مشاركة التطبيق.')));
+      }
+    }
+  }
+
+  Future<void> _shareApk() async {
+    try {
+      final apkPath = await _getApkFilePath();
+      if (apkPath != null) {
+        await Share.shareXFiles([XFile(apkPath)], text: 'حمّل تطبيق البخاري!');
+      } else {
+        // Fallback to sharing link if APK file not accessible
+        const url = 'https://drive.google.com/uc?export=download&id=1i_inm8g9IyRvfJ-0DjslSmwGvs0N_mvn';
+        await Share.share('حمّل تطبيق البخاري من هنا: $url');
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('تعذر مشاركة ملف APK: $e')),
+        );
+      }
+    }
+  }
+
+  Future<String?> _getApkFilePath() async {
+    // Attempt to find the APK in standard build locations (mostly for debugging/local builds)
+    // In production/release, this is often restricted. 
+    // This is a best-effort attempt.
+    try {
+      // For example, on Android user releases, you might not have access to the APK file directly easily without permissions.
+      // We will return null to trigger the fallback URL sharing, which is safer.
+      return null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  Future<void> _resetAppDatabase() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('إعادة بناء قاعدة البيانات'),
+        content: const Text(
+          'هل أنت متأكد؟ سيتم حذف جميع البيانات (المفضلة، الملاحظات، المجموعات) وإعادة تثبيت قاعدة البيانات من الصفر.\n\nاستخدم هذا الخيار فقط إذا كنت تواجه مشاكل في اختفاء الفصول.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('إلغاء'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('نعم، أعد البناء', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        await DatabaseHelper.instance.resetDatabase();
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('تم إعادة بناء قاعدة البيانات بنجاح. أعد تشغيل التطبيق.')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('حدث خطأ: $e')),
+          );
+        }
       }
     }
   }
@@ -121,6 +193,44 @@ class _SettingsPageState extends State<SettingsPage> {
     }
   }
 
+  Future<void> _showCustomColorPicker(BuildContext context, ThemeProvider themeProvider) async {
+    Color newColor = themeProvider.primaryColor;
+
+    await showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('اختر لون مخصص', textDirection: TextDirection.rtl),
+        content: SingleChildScrollView(
+          child: ColorPicker(
+            color: newColor,
+            onColorChanged: (color) => newColor = color,
+            pickersEnabled: const {
+              ColorPickerType.wheel: true,
+              ColorPickerType.accent: false,
+            },
+            enableShadesSelection: true,
+            showRecentColors: true,
+            heading: const Text('اختر اللون', textDirection: TextDirection.rtl),
+            subheading: const Text('حدد الدرجة', textDirection: TextDirection.rtl),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('إلغاء'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              themeProvider.setCustomPrimaryColor(newColor);
+              Navigator.pop(context);
+            },
+            child: const Text('حفظ'),
+          ),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
@@ -138,32 +248,38 @@ class _SettingsPageState extends State<SettingsPage> {
               icon: Icons.palette_outlined,
               title: 'تخصيص المظهر',
               children: [
-                // Dark mode toggle
+                // Theme Mode Selector
                 Container(
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.05),
+                    ).colorScheme.primary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                   ),
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  child: ListTile(
-                    leading: Icon(
-                      themeProvider.isDarkMode
-                          ? Icons.dark_mode
-                          : Icons.light_mode,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                    title: const Text('الوضع الليلي'),
-                    trailing: Switch(
-                      value: themeProvider.isDarkMode,
-                      onChanged: (bool value) {
-                        themeProvider.toggleTheme();
-                      },
-                    ),
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    children: [
+                       Row(
+                        children: [
+                          Icon(
+                            Icons.brightness_6,
+                            color: Theme.of(context).colorScheme.primary,
+                          ),
+                          const SizedBox(width: 12),
+                          const Text('وضع الإضاءة'),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Wrap(
+                        spacing: 8,
+                        children: [
+                          _buildThemeModeChip(context, themeProvider, 'light', 'نهاري', Icons.wb_sunny),
+                          _buildThemeModeChip(context, themeProvider, 'dark', 'ليلي', Icons.nightlight_round),
+                          _buildThemeModeChip(context, themeProvider, 'amoled', 'داكن (AMOLED)', Icons.bedtime),
+                          _buildThemeModeChip(context, themeProvider, 'sepia', 'قراءة (Sepia)', Icons.menu_book),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -172,7 +288,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.05),
+                    ).colorScheme.primary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.symmetric(
@@ -217,7 +333,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.05),
+                    ).colorScheme.primary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.all(12),
@@ -283,7 +399,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.05),
+                    ).colorScheme.primary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.all(12),
@@ -355,6 +471,16 @@ class _SettingsPageState extends State<SettingsPage> {
                           ),
                         ],
                       ),
+                      const SizedBox(height: 12),
+                      // Custom color picker button
+                      ElevatedButton.icon(
+                        onPressed: () => _showCustomColorPicker(context, themeProvider),
+                        icon: const Icon(Icons.color_lens),
+                        label: const Text('اختر لون مخصص'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -364,7 +490,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.05),
+                    ).colorScheme.primary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.all(12),
@@ -434,7 +560,7 @@ class _SettingsPageState extends State<SettingsPage> {
                   decoration: BoxDecoration(
                     color: Theme.of(
                       context,
-                    ).colorScheme.primary.withOpacity(0.05),
+                    ).colorScheme.primary.withValues(alpha: 0.05),
                     borderRadius: BorderRadius.circular(12),
                   ),
                   padding: const EdgeInsets.symmetric(
@@ -494,12 +620,12 @@ class _SettingsPageState extends State<SettingsPage> {
                       decoration: BoxDecoration(
                         color: Theme.of(
                           context,
-                        ).colorScheme.primary.withOpacity(0.08),
+                        ).colorScheme.primary.withValues(alpha: 0.08),
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(
                           color: Theme.of(
                             context,
-                          ).colorScheme.primary.withOpacity(0.2),
+                          ).colorScheme.primary.withValues(alpha: 0.2),
                         ),
                       ),
                       padding: const EdgeInsets.all(12),
@@ -560,6 +686,14 @@ class _SettingsPageState extends State<SettingsPage> {
                   subtitle: 'احذف ملفات مؤقتة لتحرير المساحة',
                   onTap: _clearTempData,
                 ),
+                const SizedBox(height: 8),
+                _buildOptionTile(
+                  context,
+                  icon: Icons.build_circle_outlined,
+                  title: 'إصلاح قاعدة البيانات',
+                  subtitle: 'اضغط هنا إذا كانت الفصول مختفية',
+                  onTap: _resetAppDatabase,
+                ),
               ],
             ),
             const SizedBox(height: 16),
@@ -591,14 +725,6 @@ class _SettingsPageState extends State<SettingsPage> {
                   title: 'مشاركة التطبيق',
                   subtitle: 'شارك التطبيق مع أصدقائك',
                   onTap: _shareApp,
-                ),
-                const SizedBox(height: 8),
-                _buildOptionTile(
-                  context,
-                  icon: Icons.download_for_offline,
-                  title: 'تحميل APK',
-                  subtitle: 'حمّل نسخة التطبيق الكاملة',
-                  onTap: _shareApk,
                 ),
               ],
             ),
@@ -661,7 +787,7 @@ class _SettingsPageState extends State<SettingsPage> {
           gradient: LinearGradient(
             colors: [
               Theme.of(context).colorScheme.surface,
-              Theme.of(context).colorScheme.surface.withOpacity(0.8),
+              Theme.of(context).colorScheme.surface.withValues(alpha: 0.8),
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
@@ -710,10 +836,10 @@ class _SettingsPageState extends State<SettingsPage> {
   }) {
     return Container(
       decoration: BoxDecoration(
-        color: Theme.of(context).colorScheme.primary.withOpacity(0.05),
+        color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
         borderRadius: BorderRadius.circular(12),
         border: Border.all(
-          color: Theme.of(context).colorScheme.primary.withOpacity(0.1),
+          color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
         ),
       ),
       child: ListTile(
@@ -724,7 +850,7 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle,
           style: TextStyle(
             fontSize: 12,
-            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
+            color: Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.7),
           ),
         ),
         trailing: Icon(
@@ -751,7 +877,7 @@ class _SettingsPageState extends State<SettingsPage> {
             decoration: BoxDecoration(
               color: isActive
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.primary.withOpacity(0.1),
+                  : Theme.of(context).colorScheme.primary.withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             padding: const EdgeInsets.all(12),
@@ -770,11 +896,50 @@ class _SettingsPageState extends State<SettingsPage> {
               fontSize: 12,
               color: isActive
                   ? Theme.of(context).colorScheme.primary
-                  : Theme.of(context).colorScheme.onSurface.withOpacity(0.6),
+                  : Theme.of(context).colorScheme.onSurface.withValues(alpha: 0.6),
               fontWeight: isActive ? FontWeight.bold : FontWeight.normal,
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildThemeModeChip(
+    BuildContext context, 
+    ThemeProvider provider, 
+    String mode, 
+    String label, 
+    IconData icon
+  ) {
+    final isSelected = provider.themeMode == mode;
+    return ChoiceChip(
+      label: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon, 
+            size: 16, 
+            color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+          ),
+          const SizedBox(width: 6),
+          Text(label),
+        ],
+      ),
+      selected: isSelected,
+      onSelected: (bool selected) {
+        if (selected) {
+          provider.setThemeMode(mode);
+        }
+      },
+      selectedColor: Theme.of(context).colorScheme.primary,
+      backgroundColor: Theme.of(context).colorScheme.primary.withValues(alpha: 0.05),
+      labelStyle: TextStyle(
+        color: isSelected ? Colors.white : Theme.of(context).colorScheme.primary,
+        fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+      ),
+      side: BorderSide(
+        color: isSelected ? Colors.transparent : Theme.of(context).colorScheme.primary.withValues(alpha: 0.2),
       ),
     );
   }
@@ -786,7 +951,7 @@ class _SettingsPageState extends State<SettingsPage> {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary.withOpacity(0.12),
+            color: Theme.of(context).colorScheme.primary.withValues(alpha: 0.12),
             shape: BoxShape.circle,
           ),
           padding: const EdgeInsets.all(12),
@@ -800,24 +965,25 @@ class _SettingsPageState extends State<SettingsPage> {
     );
   }
 
-  Future<void> _shareApk() async {
-    try {
-      const apkUrl =
-          'https://drive.google.com/uc?export=download&id=1i_inm8g9IyRvfJ-0DjslSmwGvs0N_mvn';
-      await _launchUrl(apkUrl);
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('تم فتح رابط التحميل بنجاح')),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(const SnackBar(content: Text('فشل فتح رابط التحميل')));
-      }
-    }
-  }
+  // ignore: unused_element
+  // Future<void> _shareApk() async {
+  //   try {
+  //     const apkUrl =
+  //         'https://drive.google.com/uc?export=download&id=1i_inm8g9IyRvfJ-0DjslSmwGvs0N_mvn';
+  //     await _launchUrl(apkUrl);
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(context).showSnackBar(
+  //         const SnackBar(content: Text('تم فتح رابط التحميل بنجاح')),
+  //       );
+  //     }
+  //   } catch (e) {
+  //     if (mounted) {
+  //       ScaffoldMessenger.of(
+  //         context,
+  //       ).showSnackBar(const SnackBar(content: Text('فشل فتح رابط التحميل')));
+  //     }
+  //   }
+  // }
 
   Widget _buildColorOption(
     BuildContext context, {

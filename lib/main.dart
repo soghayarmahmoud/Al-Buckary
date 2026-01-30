@@ -14,6 +14,8 @@ import 'package:buck/models/hadith.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
+import 'package:buck/components/notification_helper.dart';
+import 'package:buck/services/ad_service.dart';
 import 'package:workmanager/workmanager.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:timezone/data/latest.dart' as tz;
@@ -21,8 +23,9 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 const String dailyHadithTask = "dailyHadithTask";
-final FlutterLocalNotificationsPlugin flutterLocalNotificationsPlugin =
-    FlutterLocalNotificationsPlugin();
+// const String dailyHadithTask = "dailyHadithTask";
+// Removed global flutterLocalNotificationsPlugin as we use NotificationHelper
+
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,22 +45,10 @@ Future<void> main() async {
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation(tz.local.name));
 
-  // تهيئة الإشعارات
-  const AndroidInitializationSettings androidSettings =
-      AndroidInitializationSettings('@mipmap/ic_launcher');
-  const DarwinInitializationSettings iosSettings = DarwinInitializationSettings();
-  const WindowsInitializationSettings windowsSettings =
-      WindowsInitializationSettings(
-    appName: 'البخاري',
-    appUserModelId: '111111111111',
-    guid: 'b604fb70-ff9f-4aec-8885-d10aab73d547',
-  );
-  final InitializationSettings initSettings = InitializationSettings(
-    android: androidSettings,
-    iOS: iosSettings,
-    windows: windowsSettings,
-  );
-  await flutterLocalNotificationsPlugin.initialize(initSettings);
+  await NotificationHelper.initNotifications();
+  
+  // Initialize Google Mobile Ads
+  await AdService.initialize();
 
   if (Platform.isAndroid) {
     await Workmanager().initialize(callbackDispatcher, isInDebugMode: false);
@@ -67,7 +58,7 @@ Future<void> main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => ThemeProvider()),
-        ChangeNotifierProvider(create: (_) => FavoritesProvider()),
+        ChangeNotifierProvider(create: (_) => FavoritesProvider()..loadFavorites()),
         ChangeNotifierProvider(create: (_) => BookmarksProvider()),
         ChangeNotifierProvider(create: (_) => UsageTracker()..loadData()), // ✅ هنا
       ],
@@ -83,24 +74,7 @@ void callbackDispatcher() {
     try {
       final Hadith? hadith = await DatabaseHelper.instance.getRandomHadith();
       if (hadith != null) {
-        const AndroidNotificationDetails androidDetails =
-            AndroidNotificationDetails(
-          'daily_hadith_channel_id',
-          'Daily Hadith',
-          channelDescription: 'إشعارات الحديث اليومي',
-          importance: Importance.max,
-          priority: Priority.high,
-          playSound: true,
-        );
-        const NotificationDetails platformDetails =
-            NotificationDetails(android: androidDetails);
-        await flutterLocalNotificationsPlugin.show(
-          hadith.id,
-          '📖 حديث اليوم من البخاري',
-          hadith.text,
-          platformDetails,
-          payload: jsonEncode({'hadithId': hadith.id, 'chapterId': hadith.chapterId}),
-        );
+          await NotificationHelper.showDailyNotification(hadith);
       }
     } catch (e) {
       debugPrint('Notification error: $e');
@@ -172,6 +146,7 @@ class UsageTracker extends ChangeNotifier {
   void start() {
     _sessionStart = DateTime.now();
     _timer?.cancel();
+    // Use timer to increment seconds - this is the ONLY place we count time
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       dailySeconds++;
       totalSeconds++;
@@ -181,15 +156,13 @@ class UsageTracker extends ChangeNotifier {
 
   // إيقاف العداد وحفظ الوقت
   Future<void> stopAndSave() async {
-    if (_sessionStart == null) return;
-    final seconds = DateTime.now().difference(_sessionStart!).inSeconds;
-    dailySeconds += seconds;
-    totalSeconds += seconds;
-
+    _timer?.cancel();
+    _timer = null;
+    
+    // Save current values (already incremented by timer)
     await UsageService.saveDailySeconds(dailySeconds);
     await UsageService.saveTotalSeconds(totalSeconds);
-
-    _timer?.cancel();
+    
     _sessionStart = null;
     notifyListeners();
   }

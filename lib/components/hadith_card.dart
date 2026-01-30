@@ -188,6 +188,10 @@ import 'package:buck/providers/favorit_provider.dart';
 import 'package:buck/providers/bookmarks_provider.dart';
 import 'package:buck/image_helper.dart'; // هذا الملف مسؤول عن تحويل الحديث لصورة
 import 'package:buck/themes/theme_provider.dart';
+import 'package:buck/components/notes_sheet.dart';
+import 'package:buck/components/add_to_collection_sheet.dart';
+import 'package:buck/components/smart_share_dialog.dart';
+import 'package:buck/services/notification_service.dart';
 
 class HadithCard extends StatelessWidget {
   final Hadith hadith;
@@ -356,89 +360,97 @@ class HadithCard extends StatelessWidget {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    // مفضلة
+                    // Smart Share (Copy, Text, Image)
                     IconButton(
-                      icon: Icon(
-                        isFavorite ? Icons.favorite : Icons.favorite_border,
-                        color: isFavorite
-                            ? Colors.red
-                            : Theme.of(context).colorScheme.inversePrimary,
-                      ),
+                      icon: Icon(Icons.share, color: Theme.of(context).colorScheme.inversePrimary),
                       onPressed: () {
-                        favoritesProvider.toggleFavorite(hadith);
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(
-                              isFavorite
-                                  ? 'تم إزالة الحديث من المفضلة'
-                                  : 'تم إضافة الحديث إلى المفضلة',
-                            ),
+                        showModalBottomSheet(
+                          context: context,
+                          builder: (context) => Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              ListTile(
+                                leading: const Icon(Icons.copy_all),
+                                title: const Text('نسخ النص'),
+                                onTap: () {
+                                  Clipboard.setData(ClipboardData(text: hadith.text));
+                                  Navigator.pop(context);
+                                  NotificationService.showInfo(context, 'تم نسخ الحديث 📋');
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.text_fields),
+                                title: const Text('مشاركة كنص'),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  Share.share(hadith.text);
+                                  NotificationService.showInfo(context, 'جاري مشاركة الحديث 📤');
+                                },
+                              ),
+                              ListTile(
+                                leading: const Icon(Icons.image),
+                                title: const Text('مشاركة كصورة (Smart Share)'),
+                                onTap: () {
+                                  Navigator.pop(context);
+                                  showDialog(
+                                    context: context,
+                                    builder: (context) => SmartShareDialog(hadith: hadith),
+                                  );
+                                },
+                              ),
+                            ],
                           ),
                         );
-                      },
-                      tooltip: "مفضلة",
-                    ),
-
-                    // Bookmark
-                    Consumer<BookmarksProvider>(
-                      builder: (context, bookmarksProvider, child) {
-                        final isBookmarked =
-                            bookmarksProvider.getBookmark(hadith.chapterId) ==
-                            hadith.id;
-                        return IconButton(
-                          icon: Icon(
-                            isBookmarked
-                                ? Icons.bookmark
-                                : Icons.bookmark_border,
-                            color: isBookmarked
-                                ? Colors.blue
-                                : Theme.of(context).colorScheme.inversePrimary,
-                          ),
-                          onPressed: () {
-                            bookmarksProvider.setBookmark(
-                              hadith.chapterId,
-                              hadith.id,
-                            );
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text("تم تمييز الحديث")),
-                            );
-                          },
-                          tooltip: "تمييز",
-                        );
-                      },
-                    ),
-
-                    // نسخ
-                    IconButton(
-                      icon: Icon(
-                        Icons.copy,
-                        color: Theme.of(context).colorScheme.inversePrimary,
-                      ),
-                      onPressed: () async {
-                        await Clipboard.setData(
-                          ClipboardData(text: hadith.text),
-                        );
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text("تم نسخ الحديث")),
-                        );
-                      },
-                      tooltip: "نسخ",
-                    ),
-
-                    // مشاركة
-                    IconButton(
-                      icon: Icon(
-                        Icons.share,
-                        color: Theme.of(context).colorScheme.inversePrimary,
-                      ),
-                      onPressed: () {
-                        Share.share(hadith.text, subject: "حديث شريف");
                       },
                       tooltip: "مشاركة",
                     ),
 
-                    // تحميل كصورة
+                    // Add Note
                     IconButton(
+                      icon: Icon(Icons.note_add_outlined, color: Theme.of(context).colorScheme.inversePrimary),
+                      onPressed: () {
+                        showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                          ),
+                          builder: (context) => NotesSheet(hadith: hadith),
+                        );
+                      },
+                      tooltip: "إضافة ملاحظة",
+                    ),
+
+                    // Add to Collection
+                    IconButton(
+                      icon: Icon(Icons.bookmark_add_outlined, color: Theme.of(context).colorScheme.inversePrimary),
+                      onPressed: () {
+                         showModalBottomSheet(
+                          context: context,
+                          isScrollControlled: true,
+                          shape: const RoundedRectangleBorder(
+                            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+                          ),
+                          builder: (context) => AddToCollectionSheet(hadith: hadith),
+                        );
+                      },
+                      tooltip: "إضافة لمجموعة",
+                    ),
+
+                    // Favorite
+                    IconButton(
+                      icon: Icon(
+                        isFavorite ? Icons.favorite : Icons.favorite_border,
+                        color: isFavorite ? Colors.red : Theme.of(context).colorScheme.inversePrimary,
+                      ),
+                      onPressed: () {
+                        favoritesProvider.toggleFavorite(hadith, context);
+                      },
+                      tooltip: "مفضلة",
+                    ),
+
+                    // Download Old Style (kept as requested, or can remove if SmartShare covers it. SmartShare is better, but keeping specific download button for quick access)
+                     IconButton(
                       icon: Icon(
                         Icons.download,
                         color: Theme.of(context).colorScheme.inversePrimary,
@@ -446,7 +458,7 @@ class HadithCard extends StatelessWidget {
                       onPressed: () => _downloadStyledHadith(
                         context,
                         hadith,
-                      ), // استخدم الجديدة
+                      ),
                       tooltip: "تحميل كصورة",
                     ),
                   ],

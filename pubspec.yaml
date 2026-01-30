@@ -51,6 +51,8 @@ dependencies:
   timezone: ^0.10.1
   url_launcher: ^6.3.2
   workmanager: ^0.9.0+3
+  google_mobile_ads: ^5.2.0
+  flex_color_picker: ^3.5.1
 
 dev_dependencies:
   flutter_lints: ^5.0.0
