@@ -25,9 +25,6 @@ class BookmarksProvider extends ChangeNotifier {
       _bookmarks = {};
     }
 
-    notifyListeners();
-  }
-
     // Migrate any legacy SharedPreferences bookmarks into DB
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -36,7 +33,9 @@ class BookmarksProvider extends ChangeNotifier {
         if (key.startsWith('bookmark_')) {
           final chapterId = int.tryParse(key.replaceFirst('bookmark_', ''));
           final hadithId = prefs.getInt(key);
-          if (chapterId != null && hadithId != null && !_bookmarks.containsKey(chapterId)) {
+          if (chapterId != null &&
+              hadithId != null &&
+              !_bookmarks.containsKey(chapterId)) {
             await DatabaseHelper.instance.setBookmark(chapterId, hadithId);
             _bookmarks[chapterId] = hadithId;
             await prefs.remove(key);
@@ -49,6 +48,7 @@ class BookmarksProvider extends ChangeNotifier {
 
     // Notify after migration as well
     notifyListeners();
+  }
 
   int? getBookmark(int chapterId) => _bookmarks[chapterId];
 
