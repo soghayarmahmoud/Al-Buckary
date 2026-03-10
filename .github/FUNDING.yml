@@ -1,11 +1,10 @@
 # ---------------------------------------------------------------------------------
 # Official Funding Model for Mahmoud Soghayar
-# This file enables the "Sponsor" button on GitHub to support my open-source work.
+# Supporting open-source development and tech education.
 # ---------------------------------------------------------------------------------
 
-github: [soghyarmahmoud]
-
-# Support the creator via Buy Me a Coffee
+# We are using Buy Me a Coffee as the primary support platform.
 buy_me_a_coffee: mahmoudsrub
 
-# Focus is currently on GitHub Sponsors and Buy Me a Coffee for direct support.
+# Custom link as a backup (Optional: points to your profile or a specific page)
+# custom: ['https://www.buymeacoffee.com/mahmoudsrub']
