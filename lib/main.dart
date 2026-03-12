@@ -1,5 +1,3 @@
-// ignore_for_file: unused_import
-
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -23,36 +21,28 @@ import 'package:timezone/timezone.dart' as tz;
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 const String dailyHadithTask = "dailyHadithTask";
-// const String dailyHadithTask = "dailyHadithTask";
-// Removed global flutterLocalNotificationsPlugin as we use NotificationHelper
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // إصلاح Windows/Linux مع SQLite
   if (Platform.isWindows || Platform.isLinux) {
     sqfliteFfiInit();
     databaseFactory = databaseFactoryFfi;
   }
 
   try {
-    // NOTE: Removing unconditional DB reset on startup. Resetting the
-    // database on every app launch caused user data (favorites/notes/collections)
-    // to be lost. Keep the reset only for debugging purposes.
-    // If you need to force a reset during development, set a debug flag.
-    // Example: `const bool forceReset = bool.fromEnvironment('FORCE_DB_RESET');`
-    // Warm up DB (no reset) so tables/migrations run on launch
     await DatabaseHelper.instance.database;
   } catch (e) {
     debugPrint('Database init encountered an error: $e');
   }
+
+  await UsageService.logToday();
 
   tz.initializeTimeZones();
   tz.setLocalLocation(tz.getLocation(tz.local.name));
 
   await NotificationHelper.initNotifications();
 
-  // Initialize Google Mobile Ads
   await AdService.initialize();
 
   if (Platform.isAndroid) {
@@ -69,14 +59,13 @@ Future<void> main() async {
         ChangeNotifierProvider(create: (_) => BookmarksProvider()),
         ChangeNotifierProvider(
           create: (_) => UsageTracker()..loadData(),
-        ), // ✅ هنا
+        ),
       ],
       child: const MyApp(),
     ),
   );
 }
 
-// Dispatcher ل WorkManager
 void callbackDispatcher() {
   Workmanager().executeTask((task, inputData) async {
     tz.initializeTimeZones();
@@ -106,12 +95,12 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     tracker = Provider.of<UsageTracker>(context, listen: false);
-    tracker.start(); // ✅ بدء العداد
+    tracker.start();
   }
 
   @override
   void dispose() {
-    tracker.stopAndSave(); // ✅ حفظ الوقت عند غلق التطبيق
+    tracker.stopAndSave();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -119,9 +108,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.paused) {
-      tracker.stopAndSave(); // حفظ القيم عند الذهاب للخلفية
+      tracker.stopAndSave();
     } else if (state == AppLifecycleState.resumed) {
-      tracker.start(); // استئناف العداد عند العودة
+      tracker.start();
     }
   }
 
@@ -137,25 +126,21 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   }
 }
 
-// ✅ إضافة UsageTracker مع الميثودات الناقصة
 class UsageTracker extends ChangeNotifier {
   int dailySeconds = 0;
   int totalSeconds = 0;
   Timer? _timer;
   DateTime? _sessionStart;
 
-  // تحميل البيانات القديمة
   Future<void> loadData() async {
     dailySeconds = await UsageService.getDailySeconds();
     totalSeconds = await UsageService.getTotalSeconds();
     notifyListeners();
   }
 
-  // بدء العداد
   void start() {
     _sessionStart = DateTime.now();
     _timer?.cancel();
-    // Use timer to increment seconds - this is the ONLY place we count time
     _timer = Timer.periodic(const Duration(seconds: 1), (_) {
       dailySeconds++;
       totalSeconds++;
@@ -163,12 +148,10 @@ class UsageTracker extends ChangeNotifier {
     });
   }
 
-  // إيقاف العداد وحفظ الوقت
   Future<void> stopAndSave() async {
     _timer?.cancel();
     _timer = null;
 
-    // Save current values (already incremented by timer)
     await UsageService.saveDailySeconds(dailySeconds);
     await UsageService.saveTotalSeconds(totalSeconds);
 
