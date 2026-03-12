@@ -12,7 +12,6 @@ class StatisticsPage extends StatefulWidget {
 
 class _StatisticsPageState extends State<StatisticsPage>
     with WidgetsBindingObserver {
-  // الكود القديم
   List<DateTime> openedDays = [];
   int streak = 0;
   int totalSeconds = 0;
@@ -33,7 +32,6 @@ class _StatisticsPageState extends State<StatisticsPage>
     super.dispose();
   }
 
-  // تحميل البيانات القديمة (أيام + ستريك)
   Future<void> _loadData() async {
     final days = await UsageService.getAllDays();
     final s = await UsageService.getStreak();
@@ -41,7 +39,6 @@ class _StatisticsPageState extends State<StatisticsPage>
     final total = await UsageService.getTotalSeconds();
     final last7 = await UsageService.getLastNDays(7);
 
-    // Fetch DB stats
     final notes = await DatabaseHelper.instance.getAllNotes();
     final collections = await DatabaseHelper.instance.getCollections();
 
@@ -75,7 +72,6 @@ class _StatisticsPageState extends State<StatisticsPage>
         padding: const EdgeInsets.only(bottom: 100),
         child: Column(
           children: [
-            // التقويم
             TableCalendar(
               firstDay: DateTime.utc(2020, 1, 1),
               lastDay: DateTime.utc(2100, 12, 31),
@@ -101,7 +97,6 @@ class _StatisticsPageState extends State<StatisticsPage>
               ),
             ),
             const SizedBox(height: 30),
-            // Summary cards
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
@@ -120,12 +115,34 @@ class _StatisticsPageState extends State<StatisticsPage>
                             ),
                             const SizedBox(height: 8),
                             Text(
-                              '$streak',
+                              '$streak 🔥',
                               style: const TextStyle(
                                 fontSize: 28,
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
+                            if (streak >= 30)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4.0),
+                                child: Text(
+                                  'شهر كامل! 🏆',
+                                  style: TextStyle(
+                                    color: Colors.amber,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              )
+                            else if (streak >= 7)
+                              const Padding(
+                                padding: EdgeInsets.only(top: 4.0),
+                                child: Text(
+                                  'أسبوع متواصل! 🔥',
+                                  style: TextStyle(
+                                    color: Colors.orange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                              ),
                           ],
                         ),
                       ),
@@ -161,7 +178,6 @@ class _StatisticsPageState extends State<StatisticsPage>
               ),
             ),
             const SizedBox(height: 12),
-            // New Stats Row
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
@@ -227,7 +243,6 @@ class _StatisticsPageState extends State<StatisticsPage>
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 18),
-            // Weekly bar chart (simple)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Card(
