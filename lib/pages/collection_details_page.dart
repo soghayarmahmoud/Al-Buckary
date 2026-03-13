@@ -4,7 +4,7 @@ import 'package:buck/database_helper.dart';
 import 'package:buck/models/hadith.dart';
 import 'package:buck/models/collection.dart';
 import 'package:buck/components/custom_appbar.dart';
-import 'package:buck/pages/hadith_page.dart'; // Reuse HadithCard from here or separate component
+import 'package:buck/components/hadith_card.dart';
 
 class CollectionDetailsPage extends StatefulWidget {
   final Collection collection;
@@ -51,7 +51,6 @@ class _CollectionDetailsPageState extends State<CollectionDetailsPage> {
                     return HadithCard(
                       hadith: hadith,
                       highlightQuery: "",
-                      highlightBuilder: (text, query, context) => TextSpan(text: text),
                     );
                   },
                 ),
