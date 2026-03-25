@@ -58,8 +58,15 @@ class _StatisticsPageState extends State<StatisticsPage>
     );
   }
 
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -75,16 +82,23 @@ class _StatisticsPageState extends State<StatisticsPage>
             TableCalendar(
               firstDay: DateTime.utc(2020, 1, 1),
               lastDay: DateTime.utc(2100, 12, 31),
-              focusedDay: DateTime.now(),
+              focusedDay: today,
+
               calendarBuilders: CalendarBuilders(
                 defaultBuilder: (context, day, _) {
-                  if (_isOpenedDay(day)) {
+                  final dayOnly = DateTime(day.year, day.month, day.day);
+
+                  bool isOpened = _isOpenedDay(dayOnly);
+                  bool isPast = dayOnly.isBefore(today);
+                  bool isFuture = dayOnly.isAfter(today);
+
+                  if (isOpened) {
                     return Container(
-                      decoration: BoxDecoration(
-                        color: Colors.green,
-                        borderRadius: BorderRadius.circular(8),
-                      ),
                       margin: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Colors.green,
+                        shape: BoxShape.circle,
+                      ),
                       alignment: Alignment.center,
                       child: Text(
                         "${day.day}",
@@ -92,11 +106,53 @@ class _StatisticsPageState extends State<StatisticsPage>
                       ),
                     );
                   }
+
+                  if (isPast && !isOpened) {
+                    return Container(
+                      margin: const EdgeInsets.all(6),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        "${day.day}",
+                        style: const TextStyle(color: Colors.white),
+                      ),
+                    );
+                  }
+
+                  if (isFuture) {
+                    return Center(
+                      child: Text("${day.day}"),
+                    );
+                  }
+
                   return null;
+                },
+
+                todayBuilder: (context, day, _) {
+                  return Container(
+                    margin: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.blue,
+                        width: 2,
+                      ),
+                    ),
+                    alignment: Alignment.center,
+                    child: Text(
+                      "${day.day}",
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                  );
                 },
               ),
             ),
+
             const SizedBox(height: 30),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
@@ -177,7 +233,9 @@ class _StatisticsPageState extends State<StatisticsPage>
                 ],
               ),
             ),
+
             const SizedBox(height: 12),
+
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
               child: Row(
@@ -236,12 +294,15 @@ class _StatisticsPageState extends State<StatisticsPage>
                 ],
               ),
             ),
+
             const SizedBox(height: 10),
+
             const Text(
               "عدد الأيام المتتالية التي واظبت فيها على فتح التطبيق",
               style: TextStyle(fontSize: 16),
               textAlign: TextAlign.center,
             ),
+
             const SizedBox(height: 18),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16.0),
